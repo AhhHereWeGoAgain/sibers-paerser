@@ -2,6 +2,9 @@
 
 namespace App\Model\Detector;
 
+/**
+ * Detects response type by HTTP Content-Type header.
+ */
 class ResponseTypeDetector
 {
     public const TYPE_JSON = 'json';
@@ -23,23 +26,23 @@ class ResponseTypeDetector
         'application/atom+xml' => self::TYPE_RSS,
     ];
 
+    /**
+     * Returns normalized response type for the given Content-Type header.
+     */
     public function detect(?string $content_type): string
     {
-        if ($content_type === null || trim($content_type) === '') { 
-            // missing content type
-            return self::TYPE_UNKNOWN;
+        if ($content_type === null || trim($content_type) === '') {
+            return self::TYPE_UNKNOWN; // Content-Type header is missing.
         }
 
         $content_type = strtolower($content_type);
 
         foreach (self::CONTENT_TYPE_MAP as $needle => $type) {
-            if (str_contains($content_type, $needle)) { 
-                // success
-                return $type;
+            if (str_contains($content_type, $needle)) {
+                return $type; // Supported Content-Type was found.
             }
         }
 
-        return self::TYPE_UNKNOWN; 
-        // unsupported content type
+        return self::TYPE_UNKNOWN; // Content-Type is not supported by the application.
     }
 }

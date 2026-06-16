@@ -1,5 +1,5 @@
 <?php
-
+// Renders pagination controls for parsed source items.
 $current_page = (int) ($meta['app_page'] ?? $page ?? 1);
 $previous_page = $meta['previous_page'] ?? null;
 $next_page = $meta['next_page'] ?? null;

@@ -4,7 +4,7 @@
     <section class="hero">
         <h1>External data parser</h1>
         <p>
-            Choose a data source, load parsed items, open details and browse results with safe pagination.
+            Choose a data source.
         </p>
     </section>
 

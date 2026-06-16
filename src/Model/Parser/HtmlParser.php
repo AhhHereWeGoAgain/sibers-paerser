@@ -8,6 +8,9 @@ use DOMNode;
 use DOMXPath;
 use InvalidArgumentException;
 
+/**
+ * Parses HTML pages according to source configuration.
+ */
 class HtmlParser implements ParserInterface
 {
     private const MODE_HANDLERS = [
@@ -15,23 +18,25 @@ class HtmlParser implements ParserInterface
         'detail' => 'parseDetail',
     ];
 
+    /**
+     * Validates parsing mode and calls the related parser method.
+     */
     public function parse(string $body, array $source_config = [], string $mode = 'list'): array
-    // entrypoint метод, валидирует режим парсинга и соответствующий вызывает обработчик
     {
-        if (!isset(self::MODE_HANDLERS[$mode])) { // unsupported parser mode
+        if (!isset(self::MODE_HANDLERS[$mode])) {
             throw new InvalidArgumentException(
                 'Unsupported parser mode: ' . $mode . '. Supported modes: ' . implode(', ', array_keys(self::MODE_HANDLERS))
             );
         }
 
-        if (empty($source_config[$mode]) || !is_array($source_config[$mode])) { // mode config not found
+        if (empty($source_config[$mode]) || !is_array($source_config[$mode])) {
             throw new InvalidArgumentException(
                 'Parser config for mode "' . $mode . '" was not found in source config.'
             );
         }
 
-        if (trim($body) === '') { // empty body
-            return [];
+        if (trim($body) === '') {
+            return []; // Empty response body.
         }
 
         $handler = self::MODE_HANDLERS[$mode];
@@ -39,25 +44,25 @@ class HtmlParser implements ParserInterface
         return $this->{$handler}($body, $source_config);
     }
 
+    /**
+     * Parses a list page and returns extracted items.
+     */
     private function parseList(string $body, array $source_config): array
-    // Парсит список позиций с основной страницы
     {
         $list_config = $source_config['list'];
         $item_config = $list_config['item'] ?? [];
         $fields_config = $list_config['fields'] ?? [];
 
-        if (empty($item_config) || empty($fields_config)) { 
-            // invalid list config
-            return [];
+        if (empty($item_config) || empty($fields_config)) {
+            return []; // List item or fields configuration is missing.
         }
 
         $xpath = $this->createXPath($body);
 
         $item_nodes = $this->findNodes($xpath, $item_config);
 
-        if (empty($item_nodes)) { 
-            // no list items found
-            return [];
+        if (empty($item_nodes)) {
+            return []; // No list items found by configured selector.
         }
 
         $items = [];
@@ -70,8 +75,8 @@ class HtmlParser implements ParserInterface
                 $source_config
             );
 
-            if (!$this->isValidItem($item, $fields_config)) { // invalid item
-                continue;
+            if (!$this->isValidItem($item, $fields_config)) {
+                continue; // Skip item without required fields.
             }
 
             $items[] = $item;
@@ -86,15 +91,16 @@ class HtmlParser implements ParserInterface
         return $items;
     }
 
+    /**
+     * Parses a detail page and returns extracted fields.
+     */
     private function parseDetail(string $body, array $source_config): array
-    // Парсит детальную страницу одной ппозиуции(item) и возвращает информацию.
     {
         $detail_config = $source_config['detail'];
         $fields_config = $detail_config['fields'] ?? [];
 
-        if (empty($fields_config)) { 
-            // invalid detail config
-            return [];
+        if (empty($fields_config)) {
+            return []; // Detail fields configuration is missing.
         }
 
         $xpath = $this->createXPath($body);
@@ -107,8 +113,10 @@ class HtmlParser implements ParserInterface
         );
     }
 
-    private function parseFields(DOMXPath $xpath, array $fields_config, ?DOMNode $context_node, array $source_config): array 
-    // Парсит набор полей из конфига внутри переданного DOM-контекста
+    /**
+     * Parses configured fields inside the given DOM context.
+     */
+    private function parseFields(DOMXPath $xpath, array $fields_config, ?DOMNode $context_node, array $source_config): array
     {
         $parsed_fields = [];
 
@@ -124,13 +132,15 @@ class HtmlParser implements ParserInterface
         return $parsed_fields;
     }
 
-    private function extractField(DOMXPath $xpath, array $field_config, ?DOMNode $context_node, array $source_config): mixed 
-    // Извлекает значение одного поля из DOM по правилам из конфига
+    /**
+     * Extracts one configured field from DOM.
+     */
+    private function extractField(DOMXPath $xpath, array $field_config, ?DOMNode $context_node, array $source_config): mixed
     {
         $nodes = $this->findNodes($xpath, $field_config, $context_node);
 
-        if (empty($nodes)) { // field nodes not found
-            return !empty($field_config['multiple']) ? [] : null;
+        if (empty($nodes)) {
+            return !empty($field_config['multiple']) ? [] : null; // Field node was not found.
         }
 
         $values = [];
@@ -138,7 +148,7 @@ class HtmlParser implements ParserInterface
         foreach ($nodes as $node) {
             $target_nodes = [$node];
 
-            if (!empty($field_config['inner_selector'])) { // inner selector exists
+            if (!empty($field_config['inner_selector'])) {
                 $inner_config = [
                     'selector_type' => $field_config['inner_selector_type'] ?? 'tag',
                     'selector' => $field_config['inner_selector'],
@@ -146,8 +156,8 @@ class HtmlParser implements ParserInterface
 
                 $target_nodes = $this->findNodes($xpath, $inner_config, $node);
 
-                if (empty($target_nodes)) { // inner nodes not found
-                    continue;
+                if (empty($target_nodes)) {
+                    continue; // Inner selector did not match any nodes.
                 }
             }
 
@@ -157,11 +167,11 @@ class HtmlParser implements ParserInterface
                     $field_config['attribute'] ?? 'text'
                 );
 
-                if ($value === null || $value === '') { // empty field value
-                    continue;
+                if ($value === null || $value === '') {
+                    continue; // Empty value is ignored.
                 }
 
-                if (!empty($field_config['resolve_url'])) { // resolve relative url
+                if (!empty($field_config['resolve_url'])) {
                     $value = $this->resolveUrl(
                         $value,
                         $source_config['base_url'] ?? ''
@@ -172,49 +182,51 @@ class HtmlParser implements ParserInterface
                     $values[] = $value;
                 }
 
-                if (empty($field_config['multiple'])) { // single field value
-                    break 2;
+                if (empty($field_config['multiple'])) {
+                    break 2; // Single-value field already extracted.
                 }
             }
         }
 
-        if (!empty($field_config['multiple'])) { // multiple field values
+        if (!empty($field_config['multiple'])) {
             $values = array_values(array_unique($values));
 
-            if (($field_config['type'] ?? null) === 'text') { // merge text values
+            if (($field_config['type'] ?? null) === 'text') {
                 $separator = $field_config['separator'] ?? "\n";
 
-                return implode($separator, $values);
+                return implode($separator, $values); // Multiple text values are merged.
             }
 
-            return $values;
+            return $values; // Multiple non-text values are returned as array.
         }
 
-        return $values[0] ?? null;
+        return $values[0] ?? null; // Single field value or null.
     }
 
+    /**
+     * Finds DOM nodes by selector configuration.
+     */
     private function findNodes(DOMXPath $xpath, array $selector_config, ?DOMNode $context_node = null): array
-    //  Ищет DOM-элементы по selector_type и selector из конфига
     {
         $selector_type = $selector_config['selector_type'] ?? null;
         $selector = $selector_config['selector'] ?? null;
 
-        if (!is_string($selector_type) || !is_string($selector) || trim($selector) === '') { // invalid selector config
-            return [];
+        if (!is_string($selector_type) || !is_string($selector) || trim($selector) === '') {
+            return []; // Selector configuration is invalid.
         }
 
         $query = $this->buildXPathQuery($selector_type, $selector);
 
-        if ($query === null) { // unsupported selector type
-            return [];
+        if ($query === null) {
+            return []; // Selector type is not supported.
         }
 
         $node_list = $context_node
             ? $xpath->query($query, $context_node)
             : $xpath->query($query);
 
-        if ($node_list === false || $node_list->length === 0) { // nodes not found
-            return [];
+        if ($node_list === false || $node_list->length === 0) {
+            return []; // No nodes matched the selector.
         }
 
         $nodes = [];
@@ -223,59 +235,63 @@ class HtmlParser implements ParserInterface
             $nodes[] = $node;
         }
 
-        $nodes = $this->filterNodes($nodes, $selector_config);
-
-        return $nodes;
+        return $this->filterNodes($nodes, $selector_config);
     }
 
+    /**
+     * Extracts text content or attribute value from a DOM node.
+     */
     private function extractValue(DOMNode $node, string $attribute): ?string
-    // Извлекает текст или значение атрибута из DOM-элемента
     {
-        if ($attribute === 'text') { // extract text content
+        if ($attribute === 'text') {
             return $this->cleanText($node->textContent ?? '');
         }
 
-        if (!$node instanceof DOMElement) { // node has no attributes
-            return null;
+        if (!$node instanceof DOMElement) {
+            return null; // Only DOMElement can contain attributes.
         }
 
-        if (!$node->hasAttribute($attribute)) { // attribute not found
-            return null;
+        if (!$node->hasAttribute($attribute)) {
+            return null; // Requested attribute does not exist.
         }
 
         return $this->cleanText($node->getAttribute($attribute));
     }
 
+    /**
+     * Converts relative URLs to absolute URLs.
+     */
     private function resolveUrl(string $url, string $base_url): string
-    // Преобразует относительные ссылки в абсолютные.
     {
         $url = trim($url);
 
-        if ($url === '') { // empty url
-            return '';
+        if ($url === '') {
+            return ''; // Empty URL cannot be resolved.
         }
 
-        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) { // absolute url
-            return $url;
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return $url; // URL is already absolute.
         }
 
-        if (str_starts_with($url, '//')) { // protocol-relative url
-            return 'https:' . $url;
+        if (str_starts_with($url, '//')) {
+            return 'https:' . $url; // Protocol-relative URL.
         }
 
-        if ($base_url === '') { // base url not configured
-            return $url;
+        if ($base_url === '') {
+            return $url; // Base URL is not configured.
         }
 
-        if (str_starts_with($url, '/')) { // root-relative url
-            return rtrim($base_url, '/') . $url;
+        if (str_starts_with($url, '/')) {
+            return rtrim($base_url, '/') . $url; // Root-relative URL.
         }
 
         return rtrim($base_url, '/') . '/' . ltrim($url, '/');
     }
 
+    /**
+     * Normalizes extracted text.
+     */
     private function cleanText(string $text): string
-    // Очищает текст от лишних пробелов, переносов строк и HTML-сущностей
     {
         $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $text = preg_replace('/\s+/u', ' ', $text);
@@ -283,34 +299,38 @@ class HtmlParser implements ParserInterface
         return trim($text ?? '');
     }
 
+    /**
+     * Checks that all required fields are present and not empty.
+     */
     private function isValidItem(array $item, array $fields_config): bool
-    // Проверяет валидность и существование полей
     {
         foreach ($fields_config as $field_name => $field_config) {
-            if (empty($field_config['required'])) { // field is optional
-                continue;
+            if (empty($field_config['required'])) {
+                continue; // Optional field can be empty.
             }
 
-            if (!array_key_exists($field_name, $item)) { // required field not found
-                return false;
+            if (!array_key_exists($field_name, $item)) {
+                return false; // Required field is missing.
             }
 
             $value = $item[$field_name];
 
-            if (is_array($value) && empty($value)) { // empty required array field
-                return false;
+            if (is_array($value) && empty($value)) {
+                return false; // Required array field is empty.
             }
 
-            if (!is_array($value) && trim((string) $value) === '') { // empty required scalar field
-                return false;
+            if (!is_array($value) && trim((string) $value) === '') {
+                return false; // Required scalar field is empty.
             }
         }
 
         return true;
     }
 
+    /**
+     * Creates DOMXPath instance from raw HTML.
+     */
     private function createXPath(string $body): DOMXPath
-    // Создаёт DOMXPath из сырого HTML
     {
         $dom = new DOMDocument();
 
@@ -321,8 +341,10 @@ class HtmlParser implements ParserInterface
         return new DOMXPath($dom);
     }
 
+    /**
+     * Builds XPath query by selector type.
+     */
     private function buildXPathQuery(string $selector_type, string $selector): ?string
-    // Собирает XPath-запрос из типа селектора и значения селектора
     {
         $selector = trim($selector);
 
@@ -334,18 +356,21 @@ class HtmlParser implements ParserInterface
             default => null,
         };
     }
-    
+
+    /**
+     * Filters nodes by configured attribute conditions.
+     */
     private function filterNodes(array $nodes, array $selector_config): array
     {
         if (empty($selector_config['attribute_contains']) || !is_array($selector_config['attribute_contains'])) {
-            return $nodes;
+            return $nodes; // No additional attribute filters configured.
         }
 
         $filtered_nodes = [];
 
         foreach ($nodes as $node) {
-            if (!$node instanceof \DOMElement) {
-                continue;
+            if (!$node instanceof DOMElement) {
+                continue; // Attribute filters can be applied only to elements.
             }
 
             $is_valid = true;
@@ -375,5 +400,4 @@ class HtmlParser implements ParserInterface
 
         return $filtered_nodes;
     }
-
 }

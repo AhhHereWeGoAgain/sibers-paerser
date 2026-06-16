@@ -1,3 +1,7 @@
+<?php
+// Renders technical request metadata for debug mode.
+?>
+
 <?php if (!empty($meta)): ?>
     <details class="meta-card">
         <summary>Request meta</summary>

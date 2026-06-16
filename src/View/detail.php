@@ -1,3 +1,7 @@
+<?php
+// Renders parsed item detail page with original link, metadata and optional image.
+?>
+
 <?php require __DIR__ . '/header.php'; ?>
 
 <main class="container page">
@@ -6,7 +10,7 @@
             href="/?source=<?= urlencode((string) $selected_source) ?>&page=<?= (int) $page ?>"
             class="back-link"
         >
-            ← Back to list
+            Back to list
         </a>
 
         <?php if (!empty($detail_url)): ?>
@@ -25,6 +29,7 @@
         <?php require __DIR__ . '/partials/error_card.php'; ?>
     <?php else: ?>
         <?php
+            // Prepare safe fallback values for optional parsed fields.
             $title = $article['title'] ?? 'Untitled item';
             $content = $article['content'] ?? $article['description'] ?? $article['summary'] ?? '';
             $image_url = getFirstImageUrl($article);
@@ -35,7 +40,7 @@
                 <details class="image-details image-details--detail">
                     <summary class="image-details__summary">
                         <span class="image-details__icon">▸</span>
-                        <span>Показать изображение</span>
+                        <span>Show image</span>
                     </summary>
 
                     <div class="image-details__body">
@@ -99,7 +104,9 @@
         </article>
     <?php endif; ?>
 
-    <?php //require __DIR__ . '/partials/meta_card.php'; ?>
+    <?php if (!empty($_GET['debug'])): ?>
+        <?php require __DIR__ . '/partials/meta_card.php'; ?>
+    <?php endif; ?>
 </main>
 
 <?php require __DIR__ . '/footer.php'; ?>

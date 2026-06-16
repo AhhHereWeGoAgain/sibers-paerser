@@ -1,3 +1,7 @@
+<?php
+// Renders parsed source items as cards with metadata, lazy images and action links.
+?>
+
 <?php if (empty($items)): ?>
     <section class="empty-state">
         <h2>No items found</h2>
@@ -10,7 +14,7 @@
         <?php foreach ($items as $item): ?>
             <?php
                 if (!is_array($item)) {
-                    continue;
+                    continue; // Skip invalid item structure.
                 }
 
                 $title = $item['title'] ?? 'Untitled item';
@@ -24,7 +28,7 @@
                     <details class="image-details image-details--card">
                         <summary class="image-details__summary">
                             <span class="image-details__icon">▸</span>
-                            <span>Показать изображение</span>
+                            <span>Show image</span>
                         </summary>
 
                         <div class="image-details__body">
@@ -47,10 +51,10 @@
                         <?php if (!empty($item['published_at'])): ?>
                             <span><?= escapeHtml($item['published_at']) ?></span>
                         <?php endif; ?>
-                        
+
                         <?php if (!empty($item['category'])): ?>
                             <span><?= escapeHtml($item['category']) ?></span>
-                        <?php endif; ?> 
+                        <?php endif; ?>
 
                         <?php if (!empty($item['price'])): ?>
                             <span><?= escapeHtml($item['price']) ?></span>

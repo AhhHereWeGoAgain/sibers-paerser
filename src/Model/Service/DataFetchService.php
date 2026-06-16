@@ -8,6 +8,9 @@ use App\Model\Parser\ParserFactory;
 use App\Model\Source\SourceRegistry;
 use InvalidArgumentException;
 
+/**
+ * Loads external source pages, parses data and prepares results for views.
+ */
 class DataFetchService
 {
     private ResponseTypeDetector $type_detector;
@@ -18,6 +21,9 @@ class DataFetchService
 
     private SourceRegistry $source_registry;
 
+    /**
+     * Stores dependencies required for loading, detecting and parsing external data.
+     */
     public function __construct(
         ResponseTypeDetector $type_detector,
         ParserFactory $parser_factory,
@@ -30,6 +36,9 @@ class DataFetchService
         $this->source_registry = $source_registry;
     }
 
+    /**
+     * Returns only active sources for the web interface.
+     */
     public function getActiveSources(): array
     {
         $sources = $this->source_registry->getAll();
@@ -44,6 +53,9 @@ class DataFetchService
         return $active_sources;
     }
 
+    /**
+     * Loads and parses list items by source key.
+     */
     public function fetchAndParseItemsBySourceKey(string $source_key, int $page = 1): array
     {
         $source_data = $this->source_registry->get($source_key);
@@ -54,11 +66,10 @@ class DataFetchService
         $per_page = max(1, min($per_page, 50));
 
         if (empty($source_data['pagination']['enabled'])) {
-            // Source pagination disabled.
             $result = $this->fetch($source_data, 'list');
 
             if (!$result['success']) {
-                return $result;
+                return $result; // Source loading or parsing failed.
             }
 
             return $this->sliceItemsForAppPage(
@@ -67,18 +78,20 @@ class DataFetchService
                 $per_page,
                 1,
                 [$source_data['url']]
-            );
+            ); // Pagination is disabled, so items are sliced locally.
         }
 
         return $this->fetchPaginatedList($source_key, $source_data, $page, $per_page);
     }
 
+    /**
+     * Loads and parses detail page for selected item.
+     */
     public function fetchAndParseItemDetails(string $source_key, string $detail_url): array
     {
         $source_data = $this->source_registry->get($source_key);
 
         if (empty($source_data['detail']['enabled'])) {
-            // Detail parsing disabled.
             return [
                 'success' => false,
                 'data' => [],
@@ -91,11 +104,10 @@ class DataFetchService
                     'source_key' => $source_key,
                     'detail_url' => $detail_url,
                 ],
-            ];
+            ]; // Detail parsing is not enabled in source config.
         }
 
         if (trim($detail_url) === '') {
-            // Empty detail URL.
             return [
                 'success' => false,
                 'data' => [],
@@ -107,7 +119,7 @@ class DataFetchService
                 'meta' => [
                     'source_key' => $source_key,
                 ],
-            ];
+            ]; // Detail URL was not provided.
         }
 
         $list_url = $source_data['url'];
@@ -120,7 +132,6 @@ class DataFetchService
 
             $this->ensureCookieDirectoryExists($cookie_file);
 
-            // First request: open source list page and save cookies.
             $this->http_client->sendRequest(
                 $list_url,
                 $request_headers,
@@ -135,10 +146,12 @@ class DataFetchService
         return $this->fetch($source_data, 'detail');
     }
 
+    /**
+     * Loads external page, detects response type and parses response body.
+     */
     public function fetch(array $source_data, string $mode = 'list'): array
     {
         if (empty($source_data['url']) || !is_string($source_data['url'])) {
-            // Invalid source URL.
             return [
                 'success' => false,
                 'data' => [],
@@ -150,7 +163,7 @@ class DataFetchService
                 'meta' => [
                     'mode' => $mode,
                 ],
-            ];
+            ]; // Source URL is missing or invalid.
         }
 
         $url = $source_data['url'];
@@ -174,11 +187,10 @@ class DataFetchService
         );
 
         if (!$response['success']) {
-            // HTTP client error.
             $response['meta']['mode'] = $mode;
             $response['meta']['source_url'] = $url;
 
-            return $response;
+            return $response; // HTTP client returned request error.
         }
 
         $body = $response['data']['body'] ?? null;
@@ -191,7 +203,6 @@ class DataFetchService
         $status_code = $response['meta']['status_code'] ?? null;
 
         if (!is_string($body) || trim($body) === '') {
-            // Empty response.
             return [
                 'success' => false,
                 'data' => [],
@@ -206,11 +217,10 @@ class DataFetchService
                     'content_type' => $content_type,
                     'mode' => $mode,
                 ],
-            ];
+            ]; // External source returned empty body.
         }
 
         if (!is_string($content_type) || trim($content_type) === '') {
-            // Missing content type.
             return [
                 'success' => false,
                 'data' => [],
@@ -224,13 +234,12 @@ class DataFetchService
                     'status_code' => $status_code,
                     'mode' => $mode,
                 ],
-            ];
+            ]; // Content-Type header is required for parser selection.
         }
 
         $response_type = $this->type_detector->detect($content_type);
 
         if ($response_type === ResponseTypeDetector::TYPE_UNKNOWN) {
-            // Unsupported response type.
             return [
                 'success' => false,
                 'data' => [],
@@ -246,13 +255,12 @@ class DataFetchService
                     'response_type' => $response_type,
                     'mode' => $mode,
                 ],
-            ];
+            ]; // Content-Type is not supported by the application.
         }
 
         try {
             $parser = $this->parser_factory->create($response_type);
         } catch (InvalidArgumentException $exception) {
-            // Parser not found.
             return [
                 'success' => false,
                 'data' => [],
@@ -268,13 +276,12 @@ class DataFetchService
                     'response_type' => $response_type,
                     'mode' => $mode,
                 ],
-            ];
+            ]; // Parser factory cannot create parser for detected type.
         }
 
         try {
             $parsed_data = $parser->parse($body, $source_data, $mode);
         } catch (InvalidArgumentException $exception) {
-            // Parser config error.
             return [
                 'success' => false,
                 'data' => [],
@@ -290,11 +297,10 @@ class DataFetchService
                     'response_type' => $response_type,
                     'mode' => $mode,
                 ],
-            ];
+            ]; // Parser cannot work with current source configuration.
         }
 
         if (empty($parsed_data)) {
-            // Empty parsed result.
             return [
                 'success' => false,
                 'data' => [],
@@ -312,10 +318,9 @@ class DataFetchService
                     'body_preview' => $this->buildBodyPreview($body),
                     'debug_html_file' => $this->saveDebugHtml($body, $source_data, $mode),
                 ],
-            ];
+            ]; // Parser returned empty result.
         }
 
-        // Success.
         return [
             'success' => true,
             'data' => $parsed_data,
@@ -327,9 +332,12 @@ class DataFetchService
                 'response_type' => $response_type,
                 'mode' => $mode,
             ],
-        ];
+        ]; // External source was loaded and parsed successfully.
     }
 
+    /**
+     * Loads enough source pages to build one application page.
+     */
     private function fetchPaginatedList(string $source_key, array $source_data, int $page, int $per_page): array
     {
         $pagination = $source_data['pagination'] ?? [];
@@ -346,7 +354,7 @@ class DataFetchService
             $calibration_result = $this->calibratePagination($source_key, $source_data);
 
             if (!$calibration_result['success']) {
-                return $calibration_result;
+                return $calibration_result; // Pagination calibration failed.
             }
 
             $pagination_state = $calibration_result['data'];
@@ -368,7 +376,7 @@ class DataFetchService
                     'source_key' => $source_key,
                     'pagination_state' => $pagination_state,
                 ],
-            ];
+            ]; // Cached pagination state is invalid.
         }
 
         $first_needed_item_index = ($page - 1) * $per_page;
@@ -413,7 +421,7 @@ class DataFetchService
 
             if (!$result['success']) {
                 if (empty($all_items)) {
-                    return $result;
+                    return $result; // First required source page failed.
                 }
 
                 break;
@@ -466,27 +474,33 @@ class DataFetchService
                 'previous_page' => $page > 1 ? $page - 1 : null,
                 'next_page' => count($page_items) === $per_page ? $page + 1 : null,
             ],
-        ];
+        ]; // Paginated list was loaded and sliced for the current app page.
     }
 
+    /**
+     * Builds external source page URL by pagination template.
+     */
     private function buildSourcePageUrl(array $source_data, int $source_page): string
     {
         $pagination = $source_data['pagination'] ?? [];
         $start_page = (int) ($pagination['start_page'] ?? 1);
 
         if ($source_page === $start_page) {
-            return $source_data['url'];
+            return $source_data['url']; // First source page uses base source URL.
         }
 
         $url_template = $pagination['url_template'] ?? null;
 
         if (!is_string($url_template) || trim($url_template) === '') {
-            return $source_data['url'];
+            return $source_data['url']; // Pagination template is missing.
         }
 
         return str_replace('{page}', (string) $source_page, $url_template);
     }
 
+    /**
+     * Slices already loaded items for the requested application page.
+     */
     private function sliceItemsForAppPage(
         array $result,
         int $page,
@@ -525,33 +539,36 @@ class DataFetchService
                 'previous_page' => $page > 1 ? $page - 1 : null,
                 'next_page' => ($offset + $per_page) < $total_items ? $page + 1 : null,
             ]),
-        ];
+        ]; // Items were sliced without loading additional source pages.
     }
 
+    /**
+     * Returns cached pagination state if it exists and is still valid.
+     */
     private function getPaginationState(string $source_key, array $source_data): ?array
     {
         $pagination = $source_data['pagination'] ?? [];
 
         if (empty($pagination['auto_calibrate'])) {
-            return null;
+            return null; // Auto calibration is disabled.
         }
 
         $state_file = $this->buildPaginationStateFilePath($source_key);
 
         if (!is_file($state_file)) {
-            return null;
+            return null; // Pagination cache file does not exist.
         }
 
         $raw_state = file_get_contents($state_file);
 
         if ($raw_state === false || trim($raw_state) === '') {
-            return null;
+            return null; // Pagination cache file is empty or unreadable.
         }
 
         $state = json_decode($raw_state, true);
 
         if (!is_array($state)) {
-            return null;
+            return null; // Pagination cache contains invalid JSON.
         }
 
         $ttl = (int) ($pagination['calibration_ttl'] ?? 3600);
@@ -560,16 +577,19 @@ class DataFetchService
         $calibrated_at = (int) ($state['calibrated_at'] ?? 0);
 
         if ($calibrated_at <= 0 || (time() - $calibrated_at) > $ttl) {
-            return null;
+            return null; // Pagination cache expired.
         }
 
         if (empty($state['first_page_items_count']) || empty($state['regular_page_items_count'])) {
-            return null;
+            return null; // Pagination cache has no item counts.
         }
 
         return $state;
     }
 
+    /**
+     * Detects how many items are available on first and regular source pages.
+     */
     private function calibratePagination(string $source_key, array $source_data): array
     {
         $pagination = $source_data['pagination'] ?? [];
@@ -601,7 +621,7 @@ class DataFetchService
                     'first_page_meta' => $first_page_result['meta'] ?? [],
                     'first_page_result' => $first_page_result,
                 ],
-            ];
+            ]; // First source page could not be loaded or parsed.
         }
 
         $regular_page_source_data = $source_data;
@@ -625,7 +645,7 @@ class DataFetchService
                     'regular_page_meta' => $regular_page_result['meta'] ?? [],
                     'regular_page_result' => $regular_page_result,
                 ],
-            ];
+            ]; // Regular source page could not be loaded or parsed.
         }
 
         $first_page_items = $first_page_result['data'] ?? [];
@@ -652,7 +672,7 @@ class DataFetchService
                     'first_page_result' => $first_page_result,
                     'regular_page_result' => $regular_page_result,
                 ],
-            ];
+            ]; // Calibration pages did not return item counts.
         }
 
         $state = [
@@ -675,9 +695,12 @@ class DataFetchService
                 'first_page_url' => $first_page_url,
                 'regular_page_url' => $regular_page_url,
             ],
-        ];
+        ]; // Pagination calibration completed successfully.
     }
 
+    /**
+     * Saves pagination state to file cache.
+     */
     private function savePaginationState(string $source_key, array $state): void
     {
         $state_file = $this->buildPaginationStateFilePath($source_key);
@@ -693,6 +716,9 @@ class DataFetchService
         );
     }
 
+    /**
+     * Builds safe file path for pagination state cache.
+     */
     private function buildPaginationStateFilePath(string $source_key): string
     {
         $safe_source_key = preg_replace('/[^a-zA-Z0-9_.-]/', '_', $source_key) ?? 'source';
@@ -700,6 +726,9 @@ class DataFetchService
         return dirname(__DIR__, 3) . '/storage/cache/pagination/' . $safe_source_key . '.json';
     }
 
+    /**
+     * Converts global item index to external source page number and local offset.
+     */
     private function mapItemIndexToSourcePage(
         int $item_index,
         int $start_page,
@@ -712,7 +741,7 @@ class DataFetchService
             return [
                 'source_page' => $start_page,
                 'local_offset' => $item_index,
-            ];
+            ]; // Item is located on the first source page.
         }
 
         $regular_item_index = $item_index - $first_page_items_count;
@@ -720,9 +749,12 @@ class DataFetchService
         return [
             'source_page' => $start_page + 1 + intdiv($regular_item_index, $regular_page_items_count),
             'local_offset' => $regular_item_index % $regular_page_items_count,
-        ];
+        ]; // Item is located on one of regular source pages.
     }
 
+    /**
+     * Returns global start item index for external source page.
+     */
     private function getSourcePageStartItemIndex(
         int $source_page,
         int $start_page,
@@ -730,12 +762,15 @@ class DataFetchService
         int $regular_page_items_count
     ): int {
         if ($source_page <= $start_page) {
-            return 0;
+            return 0; // First source page starts from index zero.
         }
 
         return $first_page_items_count + (($source_page - $start_page - 1) * $regular_page_items_count);
     }
 
+    /**
+     * Builds safe cookie file path for source host.
+     */
     private function buildCookieFilePath(array $source_data): string
     {
         $base_url = $source_data['base_url'] ?? $source_data['url'] ?? 'source';
@@ -750,6 +785,9 @@ class DataFetchService
         return dirname(__DIR__, 3) . '/storage/cache/' . $safe_host . '_cookies.txt';
     }
 
+    /**
+     * Creates cookie cache directory if it does not exist.
+     */
     private function ensureCookieDirectoryExists(string $cookie_file): void
     {
         $cookie_directory = dirname($cookie_file);
@@ -759,6 +797,9 @@ class DataFetchService
         }
     }
 
+    /**
+     * Creates short plain text preview from response body.
+     */
     private function buildBodyPreview(string $body, int $limit = 1000): string
     {
         $text = trim(strip_tags($body));
@@ -771,6 +812,9 @@ class DataFetchService
         return substr($text, 0, $limit);
     }
 
+    /**
+     * Saves raw HTML response for debug purposes.
+     */
     private function saveDebugHtml(string $body, array $source_data, string $mode): string
     {
         $base_url = $source_data['base_url'] ?? $source_data['url'] ?? 'source';

@@ -1,3 +1,7 @@
+<?php
+// Renders source selection form and resets pagination to the first page.
+?>
+
 <section class="source-panel">
     <form method="get" action="/" class="source-form">
         <div class="form-group">

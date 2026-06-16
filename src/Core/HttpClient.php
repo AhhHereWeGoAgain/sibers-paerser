@@ -1,15 +1,25 @@
 <?php
+
 namespace App\Core;
 
+/**
+ * Sends HTTP requests to external data sources.
+ */
 class HttpClient
 {
-
-    public function sendRequest(string $url, array $headers = [], ?string $referer = null, ?string $user_agent = null, ?string $cookie_file = null): array
-    {
+    /**
+     * Sends GET request and returns normalized response data.
+     */
+    public function sendRequest(
+        string $url,
+        array $headers = [],
+        ?string $referer = null,
+        ?string $user_agent = null,
+        ?string $cookie_file = null
+    ): array {
         $ch = curl_init();
 
         if ($ch === false) {
-            // cURL init error
             return [
                 'success' => false,
                 'data' => [],
@@ -21,7 +31,7 @@ class HttpClient
                 'meta' => [
                     'url' => $url,
                 ],
-            ];
+            ]; // cURL handler was not created.
         }
 
         curl_setopt_array($ch, [
@@ -50,14 +60,9 @@ class HttpClient
         $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
 
-        // for test
-        $header_params = curl_getinfo($ch, CURLOPT_HTTPHEADER);
-        $referer_params = curl_getinfo($ch, CURLOPT_REFERER);
-
         curl_close($ch);
 
         if ($error_code !== 0) {
-            // cURL error
             return [
                 'success' => false,
                 'data' => [],
@@ -72,11 +77,10 @@ class HttpClient
                     'content_type' => $content_type,
                     'curl_error_code' => $error_code,
                 ],
-            ];
+            ]; // Request failed on cURL level.
         }
 
         if ($status_code < 200 || $status_code >= 300) {
-            // bad HTTP status
             return [
                 'success' => false,
                 'data' => [],
@@ -89,16 +93,11 @@ class HttpClient
                     'url' => $url,
                     'status_code' => $status_code,
                     'content_type' => $content_type,
-
-                    //test
-                    'header_params' => $header_params,
-                    'referer_params' => $referer_params,
                 ],
-            ];
+            ]; // External source returned non-success HTTP status.
         }
 
         if ($body === false || trim($body) === '') {
-            // empty response
             return [
                 'success' => false,
                 'data' => [],
@@ -112,10 +111,9 @@ class HttpClient
                     'status_code' => $status_code,
                     'content_type' => $content_type,
                 ],
-            ];
+            ]; // Response body is empty.
         }
 
-        // success
         return [
             'success' => true,
             'data' => [
@@ -128,7 +126,6 @@ class HttpClient
                 'status_code' => $status_code,
                 'content_type' => $content_type,
             ],
-        ];
+        ]; // Request completed successfully.
     }
 }
-

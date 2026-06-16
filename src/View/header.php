@@ -51,7 +51,7 @@ if (!function_exists('getFirstImageUrl')) {
     }
 }
 
-$page_title = $page_title ?? 'Data parser';
+$page_title = $page_title ?? 'Parser';
 ?>
 <!doctype html>
 <html lang="en">
@@ -64,7 +64,7 @@ $page_title = $page_title ?? 'Data parser';
 <body>
 <header class="site-header">
     <div class="container site-header__inner">
-        <a href="/" class="site-logo">Data Parser</a>
+        <a href="/" class="site-logo">DParser</a>
 
         <nav class="site-nav">
             <a href="/">Home</a>
