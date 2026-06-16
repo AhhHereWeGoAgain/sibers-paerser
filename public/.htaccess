@@ -1,0 +1,17 @@
+DirectoryIndex index.php
+
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Do not redirect existing files and directories: CSS, JS, images, index.php
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Redirect all non-existing paths to the site root.
+    # Query parameters are preserved automatically.
+    RewriteCond %{REQUEST_URI} !^/$
+    RewriteRule ^.+$ / [R=302,L]
+</IfModule>

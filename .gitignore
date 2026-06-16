@@ -1,0 +1,7 @@
+/vendor/
+/storage/cache/*
+!/storage/cache/.gitkeep
+.idea/
+.vscode/
+*.log
+*.zip
